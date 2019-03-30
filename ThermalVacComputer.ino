@@ -10,28 +10,26 @@
 #include <XBee.h>
 #include <RelayXBee.h>
 
-//======================================================================
+//==================================================================================
 //               MURI Thermal-Vac Computer
 //               Written by Jacob Meyer - meye2497 Winter Break 2018-19, Spring 2019              
-//======================================================================
+//==================================================================================
 
 /* Mega ADK pin connections:
    //Write down pin connections when layout is compeltely soldered and finalized
    //Will be helpful for future reference
    -------------------------------------------------------------------------------------------------------------------------
-     Component                    | Pins used             | Notes
+     Component                    | Pins used               | Notes
      
-     xBee serial                  |
-     Honeywell Pressure           |
-     Adafruit Thermocouple #1     |
-     Adafruit Thermocouple #2     |
-     Adafruit Thermocouple #3     |
-     Adafruit Thermocouple #4     |
-     Adafruit OLED screen         |
-     Battery heater #1            |
-     Battery heater #2            |
-     Fan #1                       |
-     Fan #2                       |
+     xBee serial                  | D18 D19 (Default)
+     Honeywell Pressure           | A6
+     Adafruit Thermocouple #1     | D52 D53 D54 D6
+     Adafruit Thermocouple #2     | D52 D53 D54 D5
+     Adafruit Thermocouple #3     | D52 D53 D54 D28
+     Adafruit Thermocouple #4     | D52 D53 D54 D53
+     Adafruit OLED screen         | D9 D34 D35 D36 D38  *Optional, but no longer needed*
+     Fan #1                       | D34 D35
+     Fan #2                       | D44 D45
    -------------------------------------------------------------------------------------------------------------------------
 */
 
@@ -65,10 +63,18 @@ File datalog;                     //File object for datalogging
 char filename[] = "TVac00.csv"; //Template for file name to save data
 bool SDactive = false;            //used to check for SD card before attempting to log
 
+/*
 Adafruit_MAX31856 maxthermo1 = Adafruit_MAX31856(5, 6, 7, 8);
 Adafruit_MAX31856 maxthermo2 = Adafruit_MAX31856(22, 24, 26, 28);
 Adafruit_MAX31856 maxthermo3 = Adafruit_MAX31856(23, 25, 27, 29);
 Adafruit_MAX31856 maxthermo4 = Adafruit_MAX31856(30, 31, 32, 33);
+*/
+
+//Template: Adafruit_MAX31856::Adafruit_MAX31856(int8_t spi_cs)
+Adafruit_MAX31856 maxthermo1 = Adafruit_MAX31856(6);
+Adafruit_MAX31856 maxthermo2 = Adafruit_MAX31856(5);
+Adafruit_MAX31856 maxthermo3 = Adafruit_MAX31856(28);
+Adafruit_MAX31856 maxthermo4 = Adafruit_MAX31856(53);
 
 // Declaration for SSD1306 display connected using software SPI (default case): (NOT I2C)
 #define OLED_MOSI  9
@@ -141,14 +147,33 @@ void Relay::closeRelay(){
 
 // End of active heating
 
- Relay R = Relay(42, 43);
+// Relay R = Relay(42, 43); !!Active Heating Discontinued!! No longer needed!
+
+//Fans
+
+Relay F1 = Relay(34, 35);
+Relay F2 = Relay(44, 45);
+
 
 void setup() {
 // Heater initialization
-  R.init();
+  /* 
+   R.init();
    R.openRelay();
    delay(500);
    R.closeRelay();
+ */
+// Fan Initializations
+   //Fan 1
+   F1.init();
+   F1.openRelay();
+   delay(2000);
+   F1.closeRelay();
+   //Fan 2
+   F2.init();
+   F2.openRelay();
+   delay(2000);
+   F2.closeRelay();
   Serial.begin(9600);
   //start XBee communication
   XBeeSerial.begin(9600);
@@ -254,6 +279,7 @@ void loop() {
   if (millis() - prevTime >= 1000) // Almost precisely makes a one second interval (as opposed to using "delay()")
   {
     prevTime = millis();
+//    print(millis()): Debugging
     // Always check for incoming commands
     String command = Serial.readStringUntil('\n');
     // Pressure Sensor
@@ -272,12 +298,13 @@ void loop() {
     int T2int = T2;
     int T3int = T3;
     int T4int = T4;
-
+ //   print(millis()): Debugging
     // XBee always checks for commands
     CheckXBee(atmSTR, TakeData, command);
 
     // Functions to relay sensor info to certain devices
     OLED(atmSTR, T1int, T2int, T3int, T4int, TakeData);
+ //   print(millis()) Debugging
     serial(atmSTR, T1int, T2int, T3int, T4int, TakeData);
     SDLogging(atmSTR, T1int, T2int, T3int, T4int, TakeData);
 
@@ -286,7 +313,7 @@ void loop() {
       count++;
     }
     count2++;
-    Misc(atm, T4);
+   // Misc(atm, T4); //Probably a waste of runtime - only include if something autonomous is specifically needed
   }
 
 }
@@ -337,7 +364,8 @@ void SDLogging(String P, int T1, int T2, int T3, int T4, bool &TakeData) {
   }
 }
 
-void CheckXBee(String P, bool &TakeData, String command) { // Can just make "TakeData" global if it doesn't work this way
+void CheckXBee(String P, bool &TakeData, String command) { 
+  // Can just make "TakeData" global if it doesn't work this way
   //all possible commands go in a series of if-else statements, where the correct action is taken in each case
   if (command == "")
   {
@@ -365,20 +393,38 @@ void CheckXBee(String P, bool &TakeData, String command) { // Can just make "Tak
   {
     // Turn the heaters off
   }
-  /*else if(command=="")
-    else if(command=="")*/
+  else if (command == "FAN1ON")
+  {
+    // Turn Fan 1 on
+    F1.openRelay();
+  }
+  else if (command == "FAN1OFF")
+  {
+    // Turn Fan 1 off
+    F1.closeRelay();
+  }
+  else if (command == "FAN2ON")
+  {
+    // Turn Fan 2 on
+    F2.openRelay();
+  }
+  else if (command == "FAN2OFF")
+  {
+    // Turn Fan 2 off
+    F2.closeRelay();
+  }
 }
 
 void Misc(float atm, double T4) {
   // Start with code for battery heater; assign thermocouple # 4 to battery
   if (T4 < 10)
   {
-    R.openRelay();
+//    R.openRelay(); !!Discontinued!!
     // Turn the heater on
   }
   else if (T4 > 25)
   {
-    R.closeRelay();
+//    R.closeRelay();  !!Discontinued!!
     // Shut the heater off 
   }
   // Code for the fans
