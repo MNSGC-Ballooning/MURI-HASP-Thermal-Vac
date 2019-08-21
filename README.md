@@ -1,4 +1,4 @@
-# MURI-HASP_Thermal-Vac
+# Thermal-Vac
 Summer People,
 Make sure to transfer everything over to the teensy as quickly
 as possible for the best form factor and increased performance, 
